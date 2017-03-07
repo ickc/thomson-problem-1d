@@ -1,0 +1,10 @@
+*
+!/**/
+!*.*
+!makefile
+
+*.o
+*.optrpt
+.DS_Store
+
+*.csv
