@@ -1,6 +1,6 @@
-OMPICC = g++-6
+MPICC = g++-6
 CC = mpicc
-OPT = -Ofast -march=native -mtune=native
+OPT = -Ofast -march=native -mtune=native -std=c++11
 CFLAGS = -Wall $(OPT) -fopenmp
 LDFLAGS = -Wall
 
@@ -12,10 +12,10 @@ report = $(patsubst %.c,%.optrpt,$(SRCS))
 all: $(EXEC) $(OBJS)
 
 %: %.o
-	MPICH_CC=$(OMPICC) $(CC) $(CFLAGS) -o $@ $<
+	MPICH_CC=$(MPICC) $(CC) $(CFLAGS) -o $@ $<
 
 %.o: %.c
-	MPICH_CC=$(OMPICC) $(CC) $(CFLAGS) -c -o $@ $<
+	MPICH_CC=$(MPICC) $(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(EXEC) $(OBJS) $(report)
