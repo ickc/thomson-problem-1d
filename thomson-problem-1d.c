@@ -189,6 +189,7 @@ if (rank == 0) {
 }
 
 MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+MPI_Bcast(&t, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     double* x = (double*)malloc(n * sizeof(double));
     double x_current;
