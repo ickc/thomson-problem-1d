@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#ifdef GETTIMEOFDAY
+#include <sys/time.h> // For struct timeval, gettimeofday
+#else
+#include <time.h> // For struct timespec, clock_gettime, CLOCK_MONOTONIC
+#endif
+
 /* Solving 1D "Thomson problem" with genetic algorithm:
 
 - particles with identical charge on an interval between -L to L
@@ -49,6 +55,19 @@ static inline double get_x_current(int n, double* x, int i, double ratio)
 }
 
 // Utilities ///////////////////////////////////////////////////////////
+
+double wall_time()
+{
+#ifdef GETTIMEOFDAY
+    struct timeval t;
+    gettimeofday(&t, NULL);
+    return 1. * t.tv_sec + 1.e-6 * t.tv_usec;
+#else
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return 1. * t.tv_sec + 1.e-9 * t.tv_nsec;
+#endif
+}
 
 static inline void print_all_x(char* filename, int n, double* x)
 {
@@ -200,18 +219,24 @@ int main(int argc, char* argv[])
 
     // Initialize //////////////////////////////////////////////////////
 
+    // time it
+    double seconds;
+    if (rank == 0)
+        seconds = -wall_time();
+
     // initialize x
     double* x = (double*)malloc(n * sizeof(double));
-    // TODO: MPI_Bcast or may be not: save communication cost
+    // save communication cost by not broadcast this in MPI
     init_particles(n, x);
 
-    // initialize potential
     double potential;
     if (rank == 0) {
-        printf("n\t%d\n", n);
+        // initialize potential
+        potential = get_potential(n, x);
+        // print
         printf("#OpenMP\t%d\n", omp_get_max_threads());
         printf("#MPI\t%d\n", n_proc);
-        potential = get_potential(n, x);
+        printf("n\t%d\n", n);
     }
 
     // prepare to enter the loop ///////////////////////////////////////
@@ -275,18 +300,19 @@ int main(int argc, char* argv[])
     }
     // } while (mutated);
 
-    // Print ///////////////////////////////////////////////////////////
+    // Finalize ////////////////////////////////////////////////////////
 
     if (rank == 0) {
+        seconds += wall_time();
+        // print
+        printf("Iterations\t%d\n", iterations);
+        printf("Time\t%f\n", seconds);
+        printf("Potential\t%f\n", potential / n / n); // normalized potential
+        print_all_x(filename_x, n, x);
+        // close
         if (filename_potential)
             fclose(file_potential);
-        print_all_x(filename_x, n, x);
-        printf("Iterations\t%d\n", iterations);
-        // normalized potential
-        printf("Potential\t%f\n", potential / n / n);
     }
-
-    // Finalize ////////////////////////////////////////////////////////
 
     free(x);
     MPI_Finalize();
