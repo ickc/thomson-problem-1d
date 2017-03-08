@@ -1,5 +1,5 @@
 MPICC = g++-6
-CC = mpicc
+CC = mpic++
 OPT = -Ofast -march=native -mtune=native -std=c++11
 CFLAGS = -Wall $(OPT) -fopenmp
 LDFLAGS = -Wall
