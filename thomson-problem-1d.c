@@ -25,22 +25,22 @@ static inline void init_particles(int n, double* x)
 static inline double get_x_current(int n, double* x, int i, double ratio)
 {
     /* i should never be the last, i.e. i != (n - 1)
-    and the first one is actually in the middle so it should never went pass 0 */
-    double x_current;
+    and the first one is actually in the middle so it should never went pass 0
+    ratio is the ratio of x_range comparing to maximum possible dx */
     const double x_min = (i == 0) ? 0. : x[i - 1];
     const double x_max = x[i + 1];
-    const double dx = x_max - x_min;
-    double my_random;
+    const double x_range = x_max - x_min;
+    double x_current;
     // full range between x_min and x_max
     // do {
     //     my_random = drand48();
-    //     x_current = x_min + my_random * dx;
+    //     x_current = x_min + my_random * x_range;
     // } while (my_random == 0 || x_current == x[i]);
     // only a narrow range around x[i]
     do {
-        // random number in [-1, 1)
-        my_random = 2 * drand48() - 1;
-        x_current = x[i] + my_random * dx / 2 / ratio;
+        // the random number in parenthesis is in [-1, 1)
+        x_current = x[i] + (2 * drand48() - 1) * x_range / ratio;
+    // repeat when x_current fall out of range
     } while (x_current <= x_min || x_current >= x_max);
     // printf("%f\t%f\t%f\n", x_min, x_current, x_max); //debug
     return x_current;
@@ -48,30 +48,31 @@ static inline double get_x_current(int n, double* x, int i, double ratio)
 
 static inline double _coulumb_self(double xi)
 {
-    /* Coulumb interaction between i and -i */
+    /* Coulumb interaction between (i, -i) */
     return 1 / (2 * xi);
 }
 
 static inline double _coulumb(double xi, double xj)
 {
-    /* assume r != 0 */
+    /* Coulumb interaction between (i, j), (i, -j), (-i, j), (-i, -j)
+    assume r != 0 */
     const double rij = fabs(xi - xj);
     // r_{i,-j}
     const double rinj = xi + xj;
     const double Vij = 1 / rij;
     // include the charges at "-i" and "-j"
     const double Vinj = 1 / rinj;
-    // the factor of 2 account for another pair in the "image" side
+    // the factor of 2 account for the fact they come in pairs
     return (2 * (Vij + Vinj));
 }
 
 static inline double get_potential_delta(int n, double* x, int i, double x_current, int n_proc, int rank)
 {
-    /* subtract the old contribution of potential between i & j
-    add the new contribution at new position x_current
-    O(n)*/
-    double potential_delta = 0;
+    /* Calculate the change in potential energy in O(n) by
+    subtracting the old contribution of potential between i & j
+    add the new contribution at new position x_current */
     double global_potential_delta = 0;
+    double potential_delta = 0;
     if (rank == 0) {
         potential_delta += _coulumb_self(x_current) - _coulumb_self(x[i]);
     }
@@ -82,7 +83,6 @@ static inline double get_potential_delta(int n, double* x, int i, double x_curre
             continue;
         potential_delta += _coulumb(x_current, x[j]) - _coulumb(x[i], x[j]);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Allreduce(&potential_delta, &global_potential_delta, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     return global_potential_delta;
 }
@@ -109,6 +109,7 @@ static inline double get_potential(int n, double* x)
 
 static inline void print_all_x(char* filename, int n, double* x)
 {
+    /* print all x values vs. the charge density lambda */
     if (!filename)
         return;
     FILE* fp;
@@ -118,6 +119,7 @@ static inline void print_all_x(char* filename, int n, double* x)
     // i = 0 needed to be treated differently since the interval is between -x_0 to x_0
     // over n to normalize for the increase in n while keeping total Q constant
     double lambda = 1 / (2 * x[0]) / n;
+    // TODO: impove x
     fprintf(fp, "%d,%f,%f\n", 0, x[0], lambda);
     for (int i = 1; i < n; i++) {
         lambda = 1 / (x[i] - x[i - 1]) / n;
@@ -128,26 +130,25 @@ static inline void print_all_x(char* filename, int n, double* x)
 
 int main(int argc, char* argv[])
 {
-    //
-    //  set up MPI
-    //
+    ///////////////////////////////////////////////////////////////////
+
+    //  Set up MPI
     int n_proc, rank;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &n_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    // default values
+    ///////////////////////////////////////////////////////////////////
+
+    // default values for args
     int n = 10;
-
-    // if (rank == 0) {
     int t = 10;
+    // only needed by rank 0
     long int seed = 10;
-    char* print_potential = NULL;
-    FILE* print2potential;
-    char* filename = NULL;
-    // }
+    char* filename_x = NULL;
+    char* filename_potential = NULL;
 
-    // get arg
+    // get args
     if (rank == 0) {
         int opt;
         while ((opt = getopt(argc, argv, "hn:t:o:p:s:")) != -1) {
@@ -158,22 +159,22 @@ int main(int argc, char* argv[])
             case 't':
                 t = (int)strtol(optarg, NULL, 0);
                 break;
-            case 'o':
-                filename = optarg;
-                break;
-            case 'p':
-                print_potential = optarg;
-                break;
             case 's':
                 seed = (int)strtol(optarg, NULL, 0);
+                break;
+            case 'o':
+                filename_x = optarg;
+                break;
+            case 'p':
+                filename_potential = optarg;
                 break;
             case 'h':
                 printf("Usage:\t%s [-n]\n", argv[0]);
                 printf("\t-n\tnumber of particles\n");
                 printf("\t-t\tnumber of iterations\n");
                 printf("\t-s\tseed of random numbers\n");
-                printf("\t-o\toutput filename\n");
-                printf("\t-p\tprint the potential per iteration\n");
+                printf("\t-o\toutput filename for charge distribution\n");
+                printf("\t-p\toutput filename for the potential per iteration\n");
                 printf("\t-h\thelp\n");
                 MPI_Finalize();
                 return (0);
@@ -191,7 +192,30 @@ int main(int argc, char* argv[])
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&t, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+    ///////////////////////////////////////////////////////////////////
+
+    // initialize x
     double* x = (double*)malloc(n * sizeof(double));
+    // TODO: MPI_Bcast or may be not: save communication cost
+    init_particles(n, x);
+
+    // initialize potential
+    double potential;
+    if (rank == 0) {
+        printf("n\t%d\n", n);
+        printf("#OpenMP\t%d\n", omp_get_max_threads());
+        printf("#MPI\t%d\n", n_proc);
+        potential = get_potential(n, x);
+    }
+
+    ///////////////////////////////////////////////////////////////////
+
+    // prepare to enter the loop
+    FILE* file_potential;
+    if (rank == 0 && filename_potential) {
+        file_potential = fopen(filename_potential, "w");
+        fprintf(file_potential, "iterations,potential\n");
+    }
     double x_current;
     double potential_delta;
     // debug
@@ -199,27 +223,11 @@ int main(int argc, char* argv[])
     // int total_iteration;
     // double mutation_percent;
     // double mutation_ratio;
-
-    // TODO: MPI_Bcast or may be not: save communication cost
-    init_particles(n, x);
-
-    double potential;
-    if (rank == 0) {
-        printf("Statistics:\n");
-        printf("n\t%d\n", n);
-        printf("#OpenMP\t%d\n", omp_get_max_threads());
-        printf("#MPI\t%d\n", n_proc);
-
-        potential = get_potential(n, x);
-    }
-
+    //
     // for do loop only
     // bool mutated;
 
-    if (rank == 0 && print_potential) {
-        print2potential = fopen(print_potential, "w");
-        fprintf(print2potential, "iterations,potential\n");
-    }
+    ///////////////////////////////////////////////////////////////////
 
     int iterations = 0;
     // do loop to stop at a certain criteria
@@ -227,11 +235,11 @@ int main(int argc, char* argv[])
     //     mutated = false;
     //     iterations++;
     // for loop for fix iterations
-    for (iterations = 0; iterations < t; iterations++) {
+    for (iterations; iterations < t; iterations++) {
         // mutate x[i]. Do not mutate the one on the right boundary (x = L)
         for (int i = 0; i < n - 1; i++) {
             if (rank == 0) {
-                x_current = get_x_current(n, x, i, 100);
+                x_current = get_x_current(n, x, i, 200);
             }
             MPI_Bcast(&x_current, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
             // printf("%d\t%f\n", i, x_current); // debug
@@ -257,24 +265,25 @@ int main(int argc, char* argv[])
             // potential_delta = potential_delta / n / n;
             // printf("%d\t%f\t%f\t%f\n", i, potential, potential_delta, x_current);
         }
-        if (rank == 0 && print_potential)
-            fprintf(print2potential, "%d,%f\n", iterations, potential / n / n);
+        if (rank == 0 && filename_potential)
+            fprintf(file_potential, "%d,%f\n", iterations, potential / n / n);
     }
     // } while (mutated);
-    // MPI_Barrier(MPI_COMM_WORLD);
+
+    ///////////////////////////////////////////////////////////////////
 
     if (rank == 0) {
-        if (print_potential)
-            fclose(print2potential);
-
-        print_all_x(filename, n, x);
-
+        if (filename_potential)
+            fclose(file_potential);
+        print_all_x(filename_x, n, x);
         printf("Iterations\t%d\n", iterations);
-
-        potential = potential / n / n;
-        printf("Potential\t%f\n", potential);
+        // normalized potential
+        printf("Potential\t%f\n", potential / n / n);
     }
 
+    ///////////////////////////////////////////////////////////////////
+
+    // finalize
     free(x);
     MPI_Finalize();
     return 0;
