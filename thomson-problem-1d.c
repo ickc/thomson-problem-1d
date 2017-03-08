@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include "omp.h"
+#include "mpi.h"
 
 /* Solving 1D "Thomson problem" with genetic algorithm:
 
@@ -54,7 +55,7 @@ static inline double _coulumb_self(double xi)
 static inline double _coulumb(double xi, double xj)
 {
     /* assume r != 0 */
-    const double rij = abs(xi - xj);
+    const double rij = fabs(xi - xj);
     // r_{i,-j}
     const double rinj = xi + xj;
     const double Vij = 1 / rij;
@@ -64,19 +65,26 @@ static inline double _coulumb(double xi, double xj)
     return (2 * (Vij + Vinj));
 }
 
-static inline double get_potential_delta(int n, double* x, int i, double x_current)
+static inline double get_potential_delta(int n, double* x, int i, double x_current, int n_proc, int rank)
 {
     /* subtract the old contribution of potential between i & j
     add the new contribution at new position x_current
     O(n)*/
-    double potential_delta = _coulumb_self(x_current) - _coulumb_self(x[i]);
+    double potential_delta = 0;
+    double global_potential_delta = 0;
+if (rank == 0) {
+    potential_delta += _coulumb_self(x_current) - _coulumb_self(x[i]);
+}
+// each MPI worker do their own sum
 #pragma omp parallel for reduction( + : potential_delta )
-    for (int j = 0; j < n; j++) {
+    for (int j = rank; j < n; j += n_proc) {
         if (j == i)
             continue;
         potential_delta += _coulumb(x_current, x[j]) - _coulumb(x[i], x[j]);
     }
-    return potential_delta;
+MPI_Barrier(MPI_COMM_WORLD);
+MPI_Allreduce(&potential_delta, &global_potential_delta, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    return global_potential_delta;
 }
 
 static inline double get_potential(int n, double* x)
@@ -120,15 +128,27 @@ static inline void print_all_x(char* filename, int n, double* x)
 
 int main(int argc, char* argv[])
 {
+//
+//  set up MPI
+//
+int n_proc, rank;
+MPI_Init(&argc, &argv);
+MPI_Comm_size(MPI_COMM_WORLD, &n_proc);
+MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     // default values
     int n = 10;
+
+// if (rank == 0) {
     int t = 10;
     long int seed = 10;
     char* print_potential = NULL;
     FILE* print2potential;
     char* filename = NULL;
+// }
 
     // get arg
+if (rank == 0) {
     int opt;
     while ((opt = getopt(argc, argv, "hn:t:o:p:s:")) != -1) {
         switch (opt) {
@@ -155,41 +175,49 @@ int main(int argc, char* argv[])
             printf("\t-o\toutput filename\n");
             printf("\t-p\tprint the potential per iteration\n");
             printf("\t-h\thelp\n");
-            // MPI_Finalize();
+            MPI_Finalize();
             return (0);
         default:
             fprintf(stderr, "%s:\tinvalid option -- %c\n", argv[0], opt);
             fprintf(stderr, "Try `%s -h' for more information.\n", argv[0]);
-            // MPI_Finalize();
+            MPI_Finalize();
             return (1);
         }
     }
-
     // for get_x_current
     srand48(seed);
+}
+
+MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+MPI_Bcast(&t, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     double* x = (double*)malloc(n * sizeof(double));
-    double potential;
-    double potential_delta;
     double x_current;
+    double potential_delta;
     // debug
-    int mutation_counter = 0;
-    int total_iteration;
+    // int mutation_counter = 0;
+    // int total_iteration;
     // double mutation_percent;
-    double mutation_ratio;
+    // double mutation_ratio;
 
+// TODO: MPI_Bcast or may be not: save communication cost
     init_particles(n, x);
 
+    double potential;
+if (rank == 0) {
     printf("Statistics:\n");
     printf("n\t%d\n", n);
     printf("#OpenMP\t%d\n", omp_get_max_threads());
+    printf("#MPI\t%d\n", n_proc);
 
     potential = get_potential(n, x);
+}
+
 
     // for do loop only
     // bool mutated;
 
-    if (print_potential) {
+    if (rank == 0 && print_potential) {
         print2potential = fopen (print_potential, "w");
         fprintf(print2potential, "iterations,potential\n");
     }
@@ -203,11 +231,15 @@ int main(int argc, char* argv[])
     for (iterations = 0; iterations < t; iterations++) {
         // mutate x[i]. Do not mutate the one on the right boundary (x = L)
         for (int i = 0; i < n - 1; i++) {
+if (rank == 0) {
             x_current = get_x_current(n, x, i, 100);
+}
+MPI_Bcast(&x_current, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
             // printf("%d\t%f\n", i, x_current); // debug
-            potential_delta = get_potential_delta(n, x, i, x_current);
+            potential_delta = get_potential_delta(n, x, i, x_current, n_proc, rank);
             if (potential_delta < 0) {
                 x[i] = x_current;
+if (rank == 0)
                 potential += potential_delta;
                 // for do loop only
                 // mutated = true;
@@ -226,12 +258,13 @@ int main(int argc, char* argv[])
             // potential_delta = potential_delta / n / n;
             // printf("%d\t%f\t%f\t%f\n", i, potential, potential_delta, x_current);
         }
-        if (print_potential)
+        if (rank == 0 && print_potential)
             fprintf(print2potential, "%d,%f\n", iterations, potential / n / n);
     }
     // } while (mutated);
+    // MPI_Barrier(MPI_COMM_WORLD);
 
-
+if (rank == 0) {
     if (print_potential)
         fclose(print2potential);
 
@@ -241,7 +274,9 @@ int main(int argc, char* argv[])
 
     potential = potential / n / n;
     printf("Potential\t%f\n", potential);
+}
 
     free(x);
+MPI_Finalize();
     return 0;
 }

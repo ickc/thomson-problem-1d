@@ -1,6 +1,6 @@
-MPICC = g++-6
+MPICC = icc
 CC = mpicc
-OPT = -Ofast -march=native -mtune=native -std=c++11
+OPT = -Ofast -fast -march=native -mtune=native -std=c99
 CFLAGS = -Wall $(OPT) -fopenmp
 LDFLAGS = -Wall
 
