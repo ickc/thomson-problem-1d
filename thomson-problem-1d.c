@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include "omp.h"
 
@@ -22,7 +23,8 @@ static inline void init_particles(int n, double* x)
 
 static inline double get_x_current(int n, double* x, int i, double ratio)
 {
-    /* i should never be the last, i.e. i != (n - 1) */
+    /* i should never be the last, i.e. i != (n - 1)
+    and the first one is actually in the middle so it should never went pass 0 */
     double x_current;
     const double x_min = (i == 0) ? 0. : x[i - 1];
     const double x_max = x[i + 1];
@@ -35,6 +37,7 @@ static inline double get_x_current(int n, double* x, int i, double ratio)
     // } while (my_random == 0 || x_current == x[i]);
     // only a narrow range around x[i]
     do {
+        // random number in [-1, 1)
         my_random = 2 * drand48() - 1;
         x_current = x[i] + my_random * dx / 2 / ratio;
     } while (x_current <= x_min || x_current >= x_max);
@@ -64,7 +67,8 @@ static inline double _coulumb(double xi, double xj)
 static inline double get_potential_delta(int n, double* x, int i, double x_current)
 {
     /* subtract the old contribution of potential between i & j
-    add the new contribution at new position x_current */
+    add the new contribution at new position x_current
+    O(n)*/
     double potential_delta = _coulumb_self(x_current) - _coulumb_self(x[i]);
 #pragma omp parallel for reduction( + : potential_delta )
     for (int j = 0; j < n; j++) {
@@ -76,6 +80,7 @@ static inline double get_potential_delta(int n, double* x, int i, double x_curre
 }
 
 static inline double get_potential(int n, double* x)
+    /* calculate the potential energy in the whole distribution in O(n^2) */
 {
     double potential = 0;
 #pragma omp parallel reduction( + : potential )
@@ -162,10 +167,10 @@ int main(int argc, char* argv[])
     double potential_delta;
     double x_current;
     // debug
-    // int mutation_counter = 0;
-    // int total_iteration;
+    int mutation_counter = 0;
+    int total_iteration;
     // double mutation_percent;
-    // double mutation_ratio;
+    double mutation_ratio;
 
     init_particles(n, x);
 
@@ -173,8 +178,17 @@ int main(int argc, char* argv[])
     printf("n\t%d\n", n);
     printf("#OpenMP\t%d\n", omp_get_max_threads());
 
-    int iterations;
+    potential = get_potential(n, x);
+
+    // for do loop only
+    // bool mutated;
+
+    int iterations = 0;
+    // do loop to stop at a certain criteria
     // do {
+    //     mutated = false;
+    //     iterations++;
+    // for loop for fix iterations
     for (iterations = 0; iterations < t; iterations++) {
         // mutate x[i]. Do not mutate the one on the right boundary (x = L)
         for (int i = 0; i < n - 1; i++) {
@@ -183,6 +197,9 @@ int main(int argc, char* argv[])
             potential_delta = get_potential_delta(n, x, i, x_current);
             if (potential_delta < 0) {
                 x[i] = x_current;
+                potential += potential_delta;
+                // for do loop only
+                // mutated = true;
                 // debug
                 // mutation_counter++;
                 // if (i == n - 2){
@@ -190,6 +207,7 @@ int main(int argc, char* argv[])
                 //     // mutation_percent = mutation_counter / total_iteration;
                 //     mutation_ratio = (double)total_iteration / mutation_counter;
                 //     printf("%d / %d = %f\n", total_iteration, mutation_counter, mutation_ratio);
+                //     printf("Potential is %f\n", potential);
                 // }
             }
             // debug
@@ -198,13 +216,12 @@ int main(int argc, char* argv[])
             // printf("%d\t%f\t%f\t%f\n", i, potential, potential_delta, x_current);
         }
     }
-    // TODO
-    // } while (moveAgain(n - 1, particles, errorBound, iterations));
-
-    // normalize potential
-    potential = get_potential(n, x) / n / n;
+    // } while (mutated);
 
     print_all(filename, n, x);
+
+    // potential from potential_delta
+    potential = potential / n / n;
     printf("Potential is %f\n", potential);
 
     printf("\nStatistics:\n");
