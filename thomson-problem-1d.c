@@ -55,7 +55,7 @@ static inline double _coulumb_self(double xi)
 static inline double _coulumb(double xi, double xj)
 {
     /* assume r != 0 */
-    const double rij = abs(xi - xj);
+    const double rij = fabs(xi - xj);
     // r_{i,-j}
     const double rinj = xi + xj;
     const double Vij = 1 / rij;
