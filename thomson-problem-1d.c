@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include "omp.h"
 
-/* 1D "Thomson problem":
+/* Solving 1D "Thomson problem" with genetic algorithm:
 
 - particles with identical charge on an interval between -L to L
 - length L is chosen to be 1
@@ -57,7 +57,7 @@ static inline double _coulumb(double xi, double xj)
     const double Vij = 1 / rij;
     // include the charges at "-i" and "-j"
     const double Vinj = 1 / rinj;
-    // the factor of 2 account for another pair in the "image" size
+    // the factor of 2 account for another pair in the "image" side
     return (2 * (Vij + Vinj));
 }
 
@@ -66,10 +66,11 @@ static inline double get_potential_delta(int n, double* x, int i, double x_curre
     /* subtract the old contribution of potential between i & j
     add the new contribution at new position x_current */
     double potential_delta = _coulumb_self(x_current) - _coulumb_self(x[i]);
+#pragma omp parallel for reduction( + : potential_delta )
     for (int j = 0; j < n; j++) {
-        if (j != i) {
-            potential_delta += _coulumb(x_current, x[j]) - _coulumb(x[i], x[j]);
-        }
+        if (j == i)
+            continue;
+        potential_delta += _coulumb(x_current, x[j]) - _coulumb(x[i], x[j]);
     }
     return potential_delta;
 }
@@ -77,7 +78,7 @@ static inline double get_potential_delta(int n, double* x, int i, double x_curre
 static inline double get_potential(int n, double* x)
 {
     double potential = 0;
-#pragma omp parallel
+#pragma omp parallel reduction( + : potential )
     {
 #pragma omp for
         for (int i = 0; i < n; i++) {
@@ -175,7 +176,7 @@ int main(int argc, char* argv[])
     int iterations;
     // do {
     for (iterations = 0; iterations < t; iterations++) {
-        // do not move the one on the right boundary (x = L)
+        // mutate x[i]. Do not mutate the one on the right boundary (x = L)
         for (int i = 0; i < n - 1; i++) {
             x_current = get_x_current(n, x, i, 100);
             // printf("%d\t%f\n", i, x_current); // debug
