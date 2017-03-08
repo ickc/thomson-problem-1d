@@ -99,7 +99,7 @@ static inline double get_potential(int n, double* x)
     return potential;
 }
 
-static inline void print_all(char* filename, int n, double* x)
+static inline void print_all_x(char* filename, int n, double* x)
 {
     if (! filename)
         return;
@@ -124,11 +124,13 @@ int main(int argc, char* argv[])
     int n = 10;
     int t = 10;
     long int seed = 10;
+    char* print_potential = NULL;
+    FILE* print2potential;
     char* filename = NULL;
 
     // get arg
     int opt;
-    while ((opt = getopt(argc, argv, "hn:t:o:s:")) != -1) {
+    while ((opt = getopt(argc, argv, "hn:t:o:p:s:")) != -1) {
         switch (opt) {
         case 'n':
             n = (int)strtol(optarg, NULL, 0);
@@ -139,6 +141,9 @@ int main(int argc, char* argv[])
         case 'o':
             filename = optarg;
             break;
+        case 'p':
+            print_potential = optarg;
+            break;
         case 's':
             seed = (int)strtol(optarg, NULL, 0);
             break;
@@ -148,6 +153,7 @@ int main(int argc, char* argv[])
             printf("\t-t\tnumber of iterations\n");
             printf("\t-s\tseed of random numbers\n");
             printf("\t-o\toutput filename\n");
+            printf("\t-p\tprint the potential per iteration\n");
             printf("\t-h\thelp\n");
             // MPI_Finalize();
             return (0);
@@ -183,6 +189,11 @@ int main(int argc, char* argv[])
     // for do loop only
     // bool mutated;
 
+    if (print_potential) {
+        print2potential = fopen (print_potential, "w");
+        fprintf(print2potential, "iterations,potential\n");
+    }
+
     int iterations = 0;
     // do loop to stop at a certain criteria
     // do {
@@ -215,17 +226,21 @@ int main(int argc, char* argv[])
             // potential_delta = potential_delta / n / n;
             // printf("%d\t%f\t%f\t%f\n", i, potential, potential_delta, x_current);
         }
+        if (print_potential)
+            fprintf(print2potential, "%d,%f\n", iterations, potential / n / n);
     }
     // } while (mutated);
 
-    print_all(filename, n, x);
 
-    // potential from potential_delta
-    potential = potential / n / n;
-    printf("Potential is %f\n", potential);
+    if (print_potential)
+        fclose(print2potential);
 
-    printf("\nStatistics:\n");
+    print_all_x(filename, n, x);
+
     printf("Iterations\t%d\n", iterations);
+
+    potential = potential / n / n;
+    printf("Potential\t%f\n", potential);
 
     free(x);
     return 0;
