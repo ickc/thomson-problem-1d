@@ -1,0 +1,9 @@
+#!/bin/bash -l
+#SBATCH -p debug 		# change this option for non-debug runs
+#SBATCH -t 00:1:00		# adjust the amount of time as necessary
+#SBATCH -N 2 			# adjust the number of nodes per test (e.g. start with 1, 2, ...)
+#SBATCH -A m2218
+#SBATCH -o mpi.%j.stdout
+#SBATCH -e mpi.%j.error
+
+srun -n 2 ./thomson-problem-1d -n 500 -t 10 -o thomson-problem-1d.o.csv -p thomson-problem-1d.p.csv
