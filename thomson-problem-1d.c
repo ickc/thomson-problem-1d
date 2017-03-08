@@ -13,6 +13,8 @@
 - Simulation is from 0 to L by symmetry
 - actual number of particles is 2n */
 
+// initialize //////////////////////////////////////////////////////////
+
 static inline void init_particles(int n, double* x)
 {
 /* evenly spaced between -L to L, and x only holds the values between 0 to L */
@@ -46,6 +48,31 @@ static inline double get_x_current(int n, double* x, int i, double ratio)
     return x_current;
 }
 
+// Utilities ///////////////////////////////////////////////////////////
+
+static inline void print_all_x(char* filename, int n, double* x)
+{
+    /* print all x values vs. the charge density lambda */
+    if (!filename)
+        return;
+    FILE* fp;
+    fp = fopen(filename, "w");
+
+    fprintf(fp, "i,x,lambda\n");
+    // i = 0 needed to be treated differently since the interval is between -x_0 to x_0
+    // over n to normalize for the increase in n while keeping total Q constant
+    double lambda = 1 / (2 * x[0]) / n;
+    // TODO: impove x
+    fprintf(fp, "%d,%f,%f\n", 0, x[0], lambda);
+    for (int i = 1; i < n; i++) {
+        lambda = 1 / (x[i] - x[i - 1]) / n;
+        fprintf(fp, "%d,%f,%f\n", i, x[i], lambda);
+    }
+    fclose(fp);
+}
+
+// Interactions ////////////////////////////////////////////////////////
+
 static inline double _coulumb_self(double xi)
 {
     /* Coulumb interaction between (i, -i) */
@@ -64,6 +91,26 @@ static inline double _coulumb(double xi, double xj)
     const double Vinj = 1 / rinj;
     // the factor of 2 account for the fact they come in pairs
     return (2 * (Vij + Vinj));
+}
+
+static inline double get_potential(int n, double* x)
+/* calculate the potential energy in the whole distribution in O(n^2) */
+{
+    double potential = 0;
+#pragma omp parallel reduction(+ : potential)
+    {
+#pragma omp for
+        for (int i = 0; i < n; i++) {
+            potential += _coulumb_self(x[i]);
+        }
+#pragma omp for
+        for (int i = 1; i < n; i++) {
+            for (int j = 0; j < i; j++) {
+                potential += _coulumb(x[i], x[j]);
+            }
+        }
+    }
+    return potential;
 }
 
 static inline double get_potential_delta(int n, double* x, int i, double x_current, int n_proc, int rank)
@@ -87,58 +134,18 @@ static inline double get_potential_delta(int n, double* x, int i, double x_curre
     return global_potential_delta;
 }
 
-static inline double get_potential(int n, double* x)
-/* calculate the potential energy in the whole distribution in O(n^2) */
-{
-    double potential = 0;
-#pragma omp parallel reduction(+ : potential)
-    {
-#pragma omp for
-        for (int i = 0; i < n; i++) {
-            potential += _coulumb_self(x[i]);
-        }
-#pragma omp for
-        for (int i = 1; i < n; i++) {
-            for (int j = 0; j < i; j++) {
-                potential += _coulumb(x[i], x[j]);
-            }
-        }
-    }
-    return potential;
-}
-
-static inline void print_all_x(char* filename, int n, double* x)
-{
-    /* print all x values vs. the charge density lambda */
-    if (!filename)
-        return;
-    FILE* fp;
-    fp = fopen(filename, "w");
-
-    fprintf(fp, "i,x,lambda\n");
-    // i = 0 needed to be treated differently since the interval is between -x_0 to x_0
-    // over n to normalize for the increase in n while keeping total Q constant
-    double lambda = 1 / (2 * x[0]) / n;
-    // TODO: impove x
-    fprintf(fp, "%d,%f,%f\n", 0, x[0], lambda);
-    for (int i = 1; i < n; i++) {
-        lambda = 1 / (x[i] - x[i - 1]) / n;
-        fprintf(fp, "%d,%f,%f\n", i, x[i], lambda);
-    }
-    fclose(fp);
-}
+// Main ////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[])
 {
-    ///////////////////////////////////////////////////////////////////
+    // Setup MPI ///////////////////////////////////////////////////////
 
-    //  Set up MPI
     int n_proc, rank;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &n_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    ///////////////////////////////////////////////////////////////////
+    // Get args ////////////////////////////////////////////////////////
 
     // default values for args
     int n = 10;
@@ -148,7 +155,6 @@ int main(int argc, char* argv[])
     char* filename_x = NULL;
     char* filename_potential = NULL;
 
-    // get args
     if (rank == 0) {
         int opt;
         while ((opt = getopt(argc, argv, "hn:t:o:p:s:")) != -1) {
@@ -192,7 +198,7 @@ int main(int argc, char* argv[])
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&t, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    ///////////////////////////////////////////////////////////////////
+    // Initialize //////////////////////////////////////////////////////
 
     // initialize x
     double* x = (double*)malloc(n * sizeof(double));
@@ -208,9 +214,8 @@ int main(int argc, char* argv[])
         potential = get_potential(n, x);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // prepare to enter the loop ///////////////////////////////////////
 
-    // prepare to enter the loop
     FILE* file_potential;
     if (rank == 0 && filename_potential) {
         file_potential = fopen(filename_potential, "w");
@@ -227,7 +232,7 @@ int main(int argc, char* argv[])
     // for do loop only
     // bool mutated;
 
-    ///////////////////////////////////////////////////////////////////
+    // Main loop ///////////////////////////////////////////////////////
 
     int iterations = 0;
     // do loop to stop at a certain criteria
@@ -270,7 +275,7 @@ int main(int argc, char* argv[])
     }
     // } while (mutated);
 
-    ///////////////////////////////////////////////////////////////////
+    // Print ///////////////////////////////////////////////////////////
 
     if (rank == 0) {
         if (filename_potential)
@@ -281,9 +286,8 @@ int main(int argc, char* argv[])
         printf("Potential\t%f\n", potential / n / n);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // Finalize ////////////////////////////////////////////////////////
 
-    // finalize
     free(x);
     MPI_Finalize();
     return 0;
