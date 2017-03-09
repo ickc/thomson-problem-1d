@@ -51,21 +51,25 @@ static inline void print_summary(char* filename, int n, int n_proc, int iteratio
 
 static inline void print_all_x(char* filename, int n, double* x)
 {
-    /* print all x values vs. the charge density lambda */
+    /* print all x values vs. the charge density lambda
+    the x value is chosen to be the middle point of each interval */
     if (!filename)
         return;
     FILE* fp;
     fp = fopen(filename, "w");
+
+    double dx;
 
     fprintf(fp, "i,x,lambda\n");
     // i = 0 needed to be treated differently since the interval is between -x_0 to x_0
     // over n to normalize for the increase in n while keeping total Q constant
     double lambda = 1 / (2 * x[0]) / n;
     // TODO: impove x
-    fprintf(fp, "%d,%f,%f\n", 0, x[0], lambda);
+    fprintf(fp, "%d,%f,%f\n", 0, 0, lambda);
     for (int i = 1; i < n; i++) {
-        lambda = 1 / (x[i] - x[i - 1]) / n;
-        fprintf(fp, "%d,%f,%f\n", i, x[i], lambda);
+        dx = x[i] - x[i - 1];
+        lambda = 1 / dx / n;
+        fprintf(fp, "%d,%f,%f\n", i, x[i] - dx / 2, lambda);
     }
     fclose(fp);
 }
