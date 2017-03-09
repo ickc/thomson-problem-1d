@@ -1,0 +1,39 @@
+#!/bin/bash -l
+
+# scaling-n: a batch script to study O(n^d), where theoretically d = 2
+# -l flag to run locally
+
+#SBATCH -J scaling-n
+#SBATCH -o scaling-n.%j.stdout
+#SBATCH -e scaling-n.%j.error
+
+#SBATCH -t 00:30:00
+#SBATCH -N 1
+#SBATCH -C haswell
+#SBATCH -A m2218
+#SBATCH -p debug
+
+printf "%s\n" "OpenMP,MPI,n,iterations,t (s),V" > scaling-n-serial.csv
+printf "%s\n" "OpenMP,MPI,n,iterations,t (s),V" > scaling-n-openmp-core.csv
+printf "%s\n" "OpenMP,MPI,n,iterations,t (s),V" > scaling-n-openmp-thread.csv
+
+if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
+    # change this to 1 for test job
+    iterations=100
+    nBase=200
+    for f in 1 2 4 8 16 32 64 128; do
+        n=$((f*nBase))
+        OMP_NUM_THREADS=1 srun -n 1 -c 1 ./thomson-problem-1d -n $n -t $iterations -o scaling-n-serial.csv
+        OMP_NUM_THREADS=32 srun -n 1 -c 1 ./thomson-problem-1d -n $n -t $iterations -o scaling-n-openmp-core.csv
+        OMP_NUM_THREADS=64 srun -n 1 -c 1 ./thomson-problem-1d -n $n -t $iterations -o scaling-n-openmp-thread.csv
+    done
+else
+    iterations=100
+    nBase=200
+    for f in 1 2 4 8 16 32 64 128; do
+        n=$((f*nBase))
+        OMP_NUM_THREADS=1 ./thomson-problem-1d -n $n -t $iterations -o scaling-n-serial.csv
+        OMP_NUM_THREADS=4 ./thomson-problem-1d -n $n -t $iterations -o scaling-n-openmp-core.csv
+        OMP_NUM_THREADS=8 ./thomson-problem-1d -n $n -t $iterations -o scaling-n-openmp-thread.csv
+    done
+fi
