@@ -71,11 +71,15 @@ double wall_time()
 
 static inline void print_summary(char* filename, int n, int n_proc, int iterations, double seconds, double potential)
 {
+    /* print out summary
+    append to existing file
+    use this header:
+    "OpenMP,MPI,n,iterations,t (s),V" */
     /* print all x values vs. the charge density lambda */
     if (!filename)
         return;
     FILE* fp;
-    fp = fopen(filename, "w");
+    fp = fopen(filename, "a");
     fprintf(fp, "%d,%d,%d,%d,%f,%f\n", omp_get_max_threads(), n_proc, n, iterations, seconds, potential);
     fclose(fp);
 }
