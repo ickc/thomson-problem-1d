@@ -271,10 +271,8 @@ int main(int argc, char* argv[])
     double potential = 0;
     init_particles(n, x, &potential, n_proc, rank);
 
+    // print
     if (rank == 0) {
-        // initialize potential
-        // potential = get_potential(n, x);
-        // print
         printf("#OpenMP\t%d\n", omp_get_max_threads());
         printf("#MPI\t%d\n", n_proc);
         printf("n\t%d\n", n);
