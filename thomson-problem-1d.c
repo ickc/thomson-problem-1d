@@ -297,6 +297,9 @@ int main(int argc, char* argv[])
     // Main loop ///////////////////////////////////////////////////////
 
     int iterations = 0;
+    int write_potential_interval = t / n;
+    if (write_potential_interval == 0)
+        write_potential_interval = 1;
     // do loop to stop at a certain criteria
     // do {
     //     mutated = false;
@@ -332,7 +335,7 @@ int main(int argc, char* argv[])
             // potential_delta = potential_delta / n / n;
             // printf("%d\t%f\t%f\t%f\n", i, potential, potential_delta, x_current);
         }
-        if (rank == 0 && filename_potential)
+        if (rank == 0 && filename_potential && iterations % write_potential_interval == 0)
             fprintf(file_potential, "%d,%f\n", iterations, potential / n / n);
     }
     // } while (mutated);
@@ -351,8 +354,11 @@ int main(int argc, char* argv[])
         print_summary(filename_summary, n, n_proc, iterations, seconds, potential);
         print_all_x(filename_x, n, x);
         // close
-        if (filename_potential)
+        if (filename_potential) {
+            // write the last entry before closing
+            fprintf(file_potential, "%d,%f\n", iterations, potential);
             fclose(file_potential);
+        }
     }
 
     free(x);
