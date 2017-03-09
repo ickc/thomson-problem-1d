@@ -5,6 +5,7 @@
 !job-*
 !scaling-*
 !compile-*
+!LICENCE
 
 *.o
 *.optrpt
