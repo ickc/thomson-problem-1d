@@ -19,70 +19,30 @@ if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
     iterations=100
     nBase=20000
     # without hyper-threading
-    process=2
-    thread=32
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=4
-    thread=16
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=8
-    thread=8
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=16
-    thread=4
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=32
-    thread=2
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=64
-    thread=1
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
+    total=64
+    for process in 2 4 8 16 32 64; do
+        thread=$((total/process))
+        OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
+    done
     # with hyper-threading
-    process=2
-    thread=64
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=4
-    thread=32
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=8
-    thread=16
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=16
-    thread=8
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=32
-    thread=4
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=64
-    thread=2
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=128
-    thread=1
-    OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
+    total=128
+    for process in 2 4 8 16 32 64 128; do
+        thread=$((total/process))
+        OMP_NUM_THREADS=$thread srun -N 2 -n $process -c $thread ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
+    done
 else
     iterations=1
     nBase=20000
     # without hyper-threading
-    process=1
-    thread=4
-    OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=2
-    thread=2
-    OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=4
-    thread=1
-    OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
+    total=4
+    for process in 1 2 4; do
+        thread=$((total/process))
+        OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
+    done
     # with hyper-threading
-    process=1
-    thread=8
-    OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=2
-    thread=4
-    OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=4
-    thread=2
-    OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
-    process=8
-    thread=1
-    OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
+    total=8
+    for process in 1 2 4 8; do
+        thread=$((total/process))
+        OMP_NUM_THREADS=$thread mpirun -n $process ./thomson-problem-1d -n $nBase -t $iterations -o scaling-hybrid.csv
+    done
 fi
