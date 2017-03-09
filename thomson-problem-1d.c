@@ -19,55 +19,6 @@
 - Simulation is from 0 to L by symmetry
 - actual number of particles is 2n */
 
-// initialize //////////////////////////////////////////////////////////
-
-static inline void init_particles(int n, double* x, double* global_potential, int rank, int n_proc)
-{
-/* evenly spaced between -L to L, and x only holds the values between 0 to L
-calculate the potential in this configuration by factoring out identical intervals in O(n)
-V = \frac{1}{dx} \sum_{i = 1}^{N - 1}(\frac{N}{i} - 1), dx = \frac{L}{N-1}, N = 2n, L = 2 */
-    double potential = 0;
-    int N = 2* n;
-#pragma omp parallel
-    {
-#pragma omp for
-        for (int i = 0; i < n; i++) {
-            x[i] = (double)(2 * i + 1) / (N - 1);
-        }
-        // each MPI process do their own sum
-    #pragma omp for reduction(+ : potential)
-        for (int i = rank + 1; i < N; i += n_proc) {
-            potential += (double)N / i - 1;
-        }
-    }
-    MPI_Allreduce(&potential, &(*global_potential), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    *global_potential = *global_potential * (N - 1) / 2;
-}
-
-static inline double get_x_current(int n, double* x, int i, double ratio)
-{
-    /* i should never be the last, i.e. i != (n - 1)
-    and the first one is actually in the middle so it should never went pass 0
-    ratio is the ratio of x_range comparing to maximum possible dx */
-    const double x_min = (i == 0) ? 0. : x[i - 1];
-    const double x_max = x[i + 1];
-    const double x_range = x_max - x_min;
-    double x_current;
-    // full range between x_min and x_max
-    // do {
-    //     my_random = drand48();
-    //     x_current = x_min + my_random * x_range;
-    // } while (my_random == 0 || x_current == x[i]);
-    // only a narrow range around x[i]
-    do {
-        // the random number in parenthesis is in [-1, 1)
-        x_current = x[i] + (2 * drand48() - 1) * x_range / ratio;
-    // repeat when x_current fall out of range
-    } while (x_current <= x_min || x_current >= x_max);
-    // printf("%f\t%f\t%f\n", x_min, x_current, x_max); //debug
-    return x_current;
-}
-
 // Utilities ///////////////////////////////////////////////////////////
 
 double wall_time()
@@ -119,6 +70,55 @@ static inline void print_all_x(char* filename, int n, double* x)
     fclose(fp);
 }
 
+// initialize //////////////////////////////////////////////////////////
+
+static inline double get_x_current(int n, double* x, int i, double ratio)
+{
+    /* i should never be the last, i.e. i != (n - 1)
+    and the first one is actually in the middle so it should never went pass 0
+    ratio is the ratio of x_range comparing to maximum possible dx */
+    const double x_min = (i == 0) ? 0. : x[i - 1];
+    const double x_max = x[i + 1];
+    const double x_range = x_max - x_min;
+    double x_current;
+    // full range between x_min and x_max
+    // do {
+    //     my_random = drand48();
+    //     x_current = x_min + my_random * x_range;
+    // } while (my_random == 0 || x_current == x[i]);
+    // only a narrow range around x[i]
+    do {
+        // the random number in parenthesis is in [-1, 1)
+        x_current = x[i] + (2 * drand48() - 1) * x_range / ratio;
+    // repeat when x_current fall out of range
+    } while (x_current <= x_min || x_current >= x_max);
+    // printf("%f\t%f\t%f\n", x_min, x_current, x_max); //debug
+    return x_current;
+}
+
+static inline void init_particles(int n, double* x, double* global_potential, int n_proc, int rank)
+{
+/* evenly spaced between -L to L, and x only holds the values between 0 to L
+calculate the potential in this configuration by factoring out identical intervals in O(n)
+V = \frac{1}{dx} \sum_{i = 1}^{N - 1}(\frac{N}{i} - 1), dx = \frac{L}{N-1}, N = 2n, L = 2 */
+    double potential = 0;
+    int N = 2* n;
+#pragma omp parallel
+    {
+#pragma omp for
+        for (int i = 0; i < n; i++) {
+            x[i] = (double)(2 * i + 1) / (N - 1);
+        }
+        // each MPI process do their own sum
+    #pragma omp for reduction(+ : potential)
+        for (int i = rank + 1; i < N; i += n_proc) {
+            potential += (double)N / i - 1;
+        }
+    }
+    MPI_Allreduce(&potential, &(*global_potential), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    *global_potential = *global_potential * (N - 1) / 2;
+}
+
 // Interactions ////////////////////////////////////////////////////////
 
 static inline double _coulumb_self(double xi)
@@ -141,26 +141,6 @@ static inline double _coulumb(double xi, double xj)
     return (2 * (Vij + Vinj));
 }
 
-static inline double get_potential(int n, double* x)
-/* calculate the potential energy in the whole distribution in O(n^2) */
-{
-    double potential = 0;
-#pragma omp parallel reduction(+ : potential)
-    {
-#pragma omp for
-        for (int i = 0; i < n; i++) {
-            potential += _coulumb_self(x[i]);
-        }
-#pragma omp for
-        for (int i = 1; i < n; i++) {
-            for (int j = 0; j < i; j++) {
-                potential += _coulumb(x[i], x[j]);
-            }
-        }
-    }
-    return potential;
-}
-
 static inline double get_potential_delta(int n, double* x, int i, double x_current, int n_proc, int rank)
 {
     /* Calculate the change in potential energy in O(n) by
@@ -180,6 +160,26 @@ static inline double get_potential_delta(int n, double* x, int i, double x_curre
     }
     MPI_Allreduce(&potential_delta, &global_potential_delta, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     return global_potential_delta;
+}
+
+static inline double get_potential(int n, double* x)
+/* calculate the potential energy in the whole distribution in O(n^2) */
+{
+    double potential = 0;
+#pragma omp parallel reduction(+ : potential)
+    {
+#pragma omp for
+        for (int i = 0; i < n; i++) {
+            potential += _coulumb_self(x[i]);
+        }
+#pragma omp for
+        for (int i = 1; i < n; i++) {
+            for (int j = 0; j < i; j++) {
+                potential += _coulumb(x[i], x[j]);
+            }
+        }
+    }
+    return potential;
 }
 
 // Main ////////////////////////////////////////////////////////////////
@@ -262,7 +262,7 @@ int main(int argc, char* argv[])
     double* x = (double*)malloc(n * sizeof(double));
     // save communication cost by not broadcast this in MPI
     double potential = 0;
-    init_particles(n, x, &potential, rank, n_proc);
+    init_particles(n, x, &potential, n_proc, rank);
 
     if (rank == 0) {
         // initialize potential
