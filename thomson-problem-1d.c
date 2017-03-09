@@ -90,7 +90,7 @@ static inline double get_x_current(int n, double* x, int i, double ratio)
     do {
         // the random number in parenthesis is in [-1, 1)
         x_current = x[i] + (2 * drand48() - 1) * x_range / ratio;
-    // repeat when x_current fall out of range
+        // repeat when x_current fall out of range
     } while (x_current <= x_min || x_current >= x_max);
     // printf("%f\t%f\t%f\n", x_min, x_current, x_max); //debug
     return x_current;
@@ -98,19 +98,19 @@ static inline double get_x_current(int n, double* x, int i, double ratio)
 
 static inline void init_particles(int n, double* x, double* global_potential, int n_proc, int rank)
 {
-/* evenly spaced between -L to L, and x only holds the values between 0 to L
+    /* evenly spaced between -L to L, and x only holds the values between 0 to L
 calculate the potential in this configuration by factoring out identical intervals in O(n)
 V = \frac{1}{dx} \sum_{i = 1}^{N - 1}(\frac{N}{i} - 1), dx = \frac{L}{N-1}, N = 2n, L = 2 */
     double potential = 0;
-    int N = 2* n;
+    int N = 2 * n;
 #pragma omp parallel
     {
 #pragma omp for
         for (int i = 0; i < n; i++) {
             x[i] = (double)(2 * i + 1) / (N - 1);
         }
-        // each MPI process do their own sum
-    #pragma omp for reduction(+ : potential)
+// each MPI process do their own sum
+#pragma omp for reduction(+ : potential)
         for (int i = rank + 1; i < N; i += n_proc) {
             potential += (double)N / i - 1;
         }
