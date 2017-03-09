@@ -2,10 +2,12 @@
 !/**/
 !*.*
 !makefile
-!job-mpi
+!job-*
+!scaling-*
 
 *.o
 *.optrpt
 .DS_Store
 
 *.csv
+!plot/*.csv
