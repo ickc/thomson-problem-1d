@@ -69,6 +69,17 @@ double wall_time()
 #endif
 }
 
+static inline void print_summary(char* filename, int n, int n_proc, int iterations, double seconds, double potential)
+{
+    /* print all x values vs. the charge density lambda */
+    if (!filename)
+        return;
+    FILE* fp;
+    fp = fopen(filename, "w");
+    fprintf(fp, "%d,%d,%d,%d,%f,%f\n", omp_get_max_threads(), n_proc, n, iterations, seconds, potential);
+    fclose(fp);
+}
+
 static inline void print_all_x(char* filename, int n, double* x)
 {
     /* print all x values vs. the charge density lambda */
@@ -171,12 +182,13 @@ int main(int argc, char* argv[])
     int t = 10;
     // only needed by rank 0
     long int seed = 10;
+    char* filename_summary = NULL;
     char* filename_x = NULL;
     char* filename_potential = NULL;
 
     if (rank == 0) {
         int opt;
-        while ((opt = getopt(argc, argv, "hn:t:x:p:s:")) != -1) {
+        while ((opt = getopt(argc, argv, "hn:t:s:o:x:p:")) != -1) {
             switch (opt) {
             case 'n':
                 n = (int)strtol(optarg, NULL, 0);
@@ -187,6 +199,9 @@ int main(int argc, char* argv[])
             case 's':
                 seed = (int)strtol(optarg, NULL, 0);
                 break;
+            case 'o':
+                filename_summary = optarg;
+                break;
             case 'x':
                 filename_x = optarg;
                 break;
@@ -195,12 +210,13 @@ int main(int argc, char* argv[])
                 break;
             case 'h':
                 printf("Usage:\t%s [-n]\n", argv[0]);
+                printf("\t-h\thelp\n");
                 printf("\t-n\tnumber of particles\n");
                 printf("\t-t\tnumber of iterations\n");
                 printf("\t-s\tseed of random numbers\n");
+                printf("\t-o\toutput filename for summary\n");
                 printf("\t-x\toutput filename for charge distribution\n");
                 printf("\t-p\toutput filename for the potential per iteration\n");
-                printf("\t-h\thelp\n");
                 MPI_Finalize();
                 return (0);
             default:
@@ -307,7 +323,11 @@ int main(int argc, char* argv[])
         // print
         printf("Iterations\t%d\n", iterations);
         printf("Time\t%f\n", seconds);
-        printf("Potential\t%f\n", potential / n / n); // normalized potential
+        // normalize potential from charge density
+        potential = potential / n / n;
+        printf("Potential\t%f\n", potential);
+
+        print_summary(filename_summary, n, n_proc, iterations, seconds, potential);
         print_all_x(filename_x, n, x);
         // close
         if (filename_potential)
