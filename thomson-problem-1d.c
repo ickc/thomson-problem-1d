@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
 
     if (rank == 0) {
         int opt;
-        while ((opt = getopt(argc, argv, "hn:t:o:p:s:")) != -1) {
+        while ((opt = getopt(argc, argv, "hn:t:x:p:s:")) != -1) {
             switch (opt) {
             case 'n':
                 n = (int)strtol(optarg, NULL, 0);
@@ -187,7 +187,7 @@ int main(int argc, char* argv[])
             case 's':
                 seed = (int)strtol(optarg, NULL, 0);
                 break;
-            case 'o':
+            case 'x':
                 filename_x = optarg;
                 break;
             case 'p':
@@ -198,7 +198,7 @@ int main(int argc, char* argv[])
                 printf("\t-n\tnumber of particles\n");
                 printf("\t-t\tnumber of iterations\n");
                 printf("\t-s\tseed of random numbers\n");
-                printf("\t-o\toutput filename for charge distribution\n");
+                printf("\t-x\toutput filename for charge distribution\n");
                 printf("\t-p\toutput filename for the potential per iteration\n");
                 printf("\t-h\thelp\n");
                 MPI_Finalize();
