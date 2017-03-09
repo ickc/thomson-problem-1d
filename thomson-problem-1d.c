@@ -167,11 +167,11 @@ static inline double get_potential_delta(int n, double* x, int i, double x_curre
 }
 
 static inline double get_potential(int n, double* x)
-/* calculate the potential energy in the whole distribution in O(n^2) 
-**this one is not used** since the potential is initialized and potential_delta is added per iteration
-MPI is not implemented here
-for debug only */
 {
+    /* calculate the potential energy in the whole distribution in O(n^2) 
+    **this one is not used** since the potential is initialized and potential_delta is added per iteration
+    MPI is not implemented here
+    for debug only */
     double potential = 0;
 #pragma omp parallel reduction(+ : potential)
     {
