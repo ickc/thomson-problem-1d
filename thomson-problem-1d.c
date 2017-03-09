@@ -21,13 +21,27 @@
 
 // initialize //////////////////////////////////////////////////////////
 
-static inline void init_particles(int n, double* x)
+static inline void init_particles(int n, double* x, double* global_potential, int rank, int n_proc)
 {
-/* evenly spaced between -L to L, and x only holds the values between 0 to L */
-#pragma omp parallel for
-    for (int i = 0; i < n; i++) {
-        x[i] = (double)(2 * i + 1) / (2 * n - 1);
+/* evenly spaced between -L to L, and x only holds the values between 0 to L
+calculate the potential in this configuration by factoring out identical intervals in O(n)
+V = \frac{1}{dx} \sum_{i = 1}^{N - 1}(\frac{N}{i} - 1), dx = \frac{L}{N-1}, N = 2n, L = 2 */
+    double potential = 0;
+    int N = 2* n;
+#pragma omp parallel
+    {
+#pragma omp for
+        for (int i = 0; i < n; i++) {
+            x[i] = (double)(2 * i + 1) / (N - 1);
+        }
+        // each MPI process do their own sum
+    #pragma omp for reduction(+ : potential)
+        for (int i = rank + 1; i < N; i += n_proc) {
+            potential += (double)N / i - 1;
+        }
     }
+    MPI_Allreduce(&potential, &(*global_potential), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    *global_potential = *global_potential * (N - 1) / 2;
 }
 
 static inline double get_x_current(int n, double* x, int i, double ratio)
@@ -247,12 +261,12 @@ int main(int argc, char* argv[])
     // initialize x
     double* x = (double*)malloc(n * sizeof(double));
     // save communication cost by not broadcast this in MPI
-    init_particles(n, x);
+    double potential = 0;
+    init_particles(n, x, &potential, rank, n_proc);
 
-    double potential;
     if (rank == 0) {
         // initialize potential
-        potential = get_potential(n, x);
+        // potential = get_potential(n, x);
         // print
         printf("#OpenMP\t%d\n", omp_get_max_threads());
         printf("#MPI\t%d\n", n_proc);
