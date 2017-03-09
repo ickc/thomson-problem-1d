@@ -1,0 +1,45 @@
+#!/bin/bash -l
+
+# -l flag to run locally
+
+#SBATCH -J scaling-openmp
+#SBATCH -o scaling-openmp.%j.stdout
+#SBATCH -e scaling-openmp.%j.error
+
+#SBATCH -t 00:30:00
+#SBATCH -N 1
+#SBATCH -C haswell
+#SBATCH -A m2218
+#SBATCH -p debug
+
+printf "%s\n" "OpenMP,MPI,n,iterations,t (s),V" > scaling-openmp-strong.csv
+printf "%s\n" "OpenMP,MPI,n,iterations,t (s),V" > scaling-openmp-weak.csv
+
+if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
+    # change this to 1 for test job
+    iterations=100
+    # Strong scaling: fix number of particles
+    nBase=20000
+    for p in 1 2 4 6 12 18 24 32; do
+        OMP_NUM_THREADS=$p srun -n 1 -c $p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-openmp-strong.csv
+    done
+    # weak scaling: fix number of particles per process
+    nBase=2000
+    for p in 1 2 4 6 12 18 24 32; do
+        n=$((p*nBase))
+        OMP_NUM_THREADS=$p srun -n 1 -c $p ./thomson-problem-1d -n $n -t $iterations -o scaling-openmp-weak.csv
+    done
+else
+    iterations=1
+    # Strong scaling: fix number of particles
+    nBase=20000
+    for p in 1 2 4 6 8; do
+        OMP_NUM_THREADS=$p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-openmp-strong.csv
+    done
+    # weak scaling: fix number of particles per process
+    nBase=2000
+    for p in 1 2 4 6 8; do
+        n=$((p*nBase))
+        OMP_NUM_THREADS=$p ./thomson-problem-1d -n $n -t $iterations -o scaling-openmp-weak.csv
+    done
+fi

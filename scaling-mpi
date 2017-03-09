@@ -1,0 +1,47 @@
+#!/bin/bash -l
+
+# -l flag to run locally
+
+#SBATCH -J scaling-mpi
+#SBATCH -o scaling-mpi.%j.stdout
+#SBATCH -e scaling-mpi.%j.error
+
+#SBATCH -t 00:30:00
+#SBATCH -N 24
+#SBATCH -C haswell
+#SBATCH -A m2218
+#SBATCH -p debug
+
+export OMP_NUM_THREADS=1
+
+printf "%s\n" "OpenMP,MPI,n,iterations,t (s),V" > scaling-mpi-strong.csv
+printf "%s\n" "OpenMP,MPI,n,iterations,t (s),V" > scaling-mpi-weak.csv
+
+if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
+    # change this to 1 for test job
+    iterations=100
+    # Strong scaling: fix number of particles
+    nBase=20000
+    for p in 1 2 4 6 12 18 24; do
+        srun -n $p -N $p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-mpi-strong.csv
+    done
+    # weak scaling: fix number of particles per process
+    nBase=2000
+    for p in 1 2 4 6 12 18 24; do
+        n=$((p*nBase))
+        srun -n $p -N $p ./thomson-problem-1d -n $n -t $iterations -o scaling-mpi-weak.csv
+    done
+else
+    iterations=1
+    # Strong scaling: fix number of particles
+    nBase=20000
+    for p in 1 2 4 6 8; do
+        mpirun -n $p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-mpi-strong.csv
+    done
+    # weak scaling: fix number of particles per process
+    nBase=2000
+    for p in 1 2 4 6 8; do
+        n=$((p*nBase))
+        mpirun -n $p ./thomson-problem-1d -n $n -t $iterations -o scaling-mpi-weak.csv
+    done
+fi

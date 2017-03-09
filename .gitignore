@@ -4,6 +4,7 @@
 !makefile
 !job-*
 !scaling-*
+!compile-*
 
 *.o
 *.optrpt

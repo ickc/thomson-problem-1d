@@ -1,0 +1,13 @@
+#!/bin/bash -l
+
+#SBATCH -J make-thomson-problem-1d
+#SBATCH -o make-thomson-problem-1d.%j.stdout
+#SBATCH -e make-thomson-problem-1d.%j.error
+
+#SBATCH -t 00:1:00
+#SBATCH -N 1
+#SBATCH -C haswell
+#SBATCH -A m2218
+#SBATCH -p debug
+
+srun -N 1 make clean && make -j CC=CC MPICC=CC
