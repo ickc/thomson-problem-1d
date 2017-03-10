@@ -20,12 +20,12 @@ if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
     iterations=100
     # Strong scaling: fix number of particles
     nBase=20000
-    for p in 1 2 4 6 12 18 24 32; do
+    for p in 1 2 4 8 16 32; do
         OMP_NUM_THREADS=$p srun -n 1 -c $p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-openmp-strong.csv
     done
     # weak scaling: fix number of particles per process
     nBase=2000
-    for p in 1 2 4 6 12 18 24 32; do
+    for p in 1 2 4 8 16 32; do
         n=$((p*nBase))
         OMP_NUM_THREADS=$p srun -n 1 -c $p ./thomson-problem-1d -n $n -t $iterations -o scaling-openmp-weak.csv
     done
@@ -33,12 +33,12 @@ else
     iterations=1
     # Strong scaling: fix number of particles
     nBase=20000
-    for p in 1 2 4 6 8; do
+    for p in 1 2 4 8; do
         OMP_NUM_THREADS=$p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-openmp-strong.csv
     done
     # weak scaling: fix number of particles per process
     nBase=2000
-    for p in 1 2 4 6 8; do
+    for p in 1 2 4 8; do
         n=$((p*nBase))
         OMP_NUM_THREADS=$p ./thomson-problem-1d -n $n -t $iterations -o scaling-openmp-weak.csv
     done
