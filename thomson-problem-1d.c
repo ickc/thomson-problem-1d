@@ -65,7 +65,7 @@ static inline void print_all_x(char* filename, int n, double* x)
     // over n to normalize for the increase in n while keeping total Q constant
     double lambda = 1 / (2 * x[0]) / n;
     // TODO: impove x
-    fprintf(fp, "%d,%f,%f\n", 0, 0, lambda);
+    fprintf(fp, "%d,%f,%f\n", 0, 0., lambda);
     for (int i = 1; i < n; i++) {
         dx = x[i] - x[i - 1];
         lambda = 1 / dx / n;
