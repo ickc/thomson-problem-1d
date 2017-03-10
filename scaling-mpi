@@ -27,7 +27,7 @@ if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
     done
     # weak scaling: expect constant time for perfect parallelization (O(n^2) algorithm)
     nBase=1000
-    for p in 1 2 4; do
+    for p in 1 2 3 4; do
         n=$((p*nBase))
         process=$((p*p))
         srun -n $process -N $process ./thomson-problem-1d -n $n -t $iterations -o scaling-mpi-weak.csv
