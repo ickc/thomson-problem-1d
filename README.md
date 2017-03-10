@@ -1,4 +1,4 @@
-# Solving 1D "Thomson problem" with genetic algorithm
+# Solving 1D "Thomson problem" with genetic algorithm in O(n^2)
 
 - particles with identical charge on an interval between -L to L
 - length L is chosen to be 1
@@ -12,6 +12,11 @@ Local:
 ```bash
 make clean && make -j
 thomson-problem-1d -h
+# examples
+./scaling-n
+./scaling-hybrid
+./scaling-mpi
+./scaling-openmp
 ```
 
 On NERSC:
@@ -20,6 +25,7 @@ On NERSC:
 # compile (make sure the native flags are compile on the actual Cori node rather than login node)
 sbatch ./compile-cori
 # plot (output as CSV files)
+sbatch ./scaling-n
 sbatch ./scaling-hybrid
 sbatch ./scaling-mpi
 sbatch ./scaling-openmp
