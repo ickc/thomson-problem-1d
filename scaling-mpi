@@ -21,12 +21,12 @@ if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
     # change this to 1 for test job
     iterations=100
     # Strong scaling: fix number of particles
-    nBase=10000
+    nBase=20000
     for p in 1 2 4 8 16; do
         srun -n $p -N $p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-mpi-strong.csv
     done
     # weak scaling: expect constant time for perfect parallelization (O(n^2) algorithm)
-    nBase=1000
+    nBase=20000
     for p in 1 2 3 4; do
         n=$((p*nBase))
         process=$((p*p))
@@ -35,12 +35,12 @@ if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
 else
     iterations=1
     # Strong scaling: fix number of particles
-    nBase=10000
+    nBase=20000
     for p in 1 2 4 8; do
         mpirun -n $p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-mpi-strong.csv
     done
     # weak scaling: expect constant time for perfect parallelization (O(n^2) algorithm)
-    nBase=1000
+    nBase=20000
     for p in 1 2; do
         n=$((p*nBase))
         process=$((p*p))

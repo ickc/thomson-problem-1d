@@ -24,7 +24,7 @@ if [[ $NERSC_HOST == "cori" && "$1" != "-l" ]]; then
         OMP_NUM_THREADS=$p srun -n 1 -c $p ./thomson-problem-1d -n $nBase -t $iterations -o scaling-openmp-strong.csv
     done
     # weak scaling: expect constant time for perfect parallelization (O(n^2) algorithm)
-    nBase=2000
+    nBase=20000
     for p in 1 2 3 4 5; do
         n=$((p*nBase))
         process=$((p*p))
